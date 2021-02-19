@@ -133,21 +133,28 @@ export class MapComponent implements AfterViewInit {
       let reserved = this.reservedStatusFor(seat.seatCode);
 
       var buttonType = reserved ? ".remove" : ".reserve";
+      var queries:string[] = this.popupQueries(seat);
       var icon = this.iconFor(seat.seatCode);
       var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
       marker.bindPopup(this.popupFor(seat));
       marker.on("popupopen", () => {
-        this.elementRef.nativeElement
-          .querySelector(buttonType)
+        for (var i = 0; i < queries.length; i += 1) {
+          let query = queries[i];
+          console.log(query);
+          console.log(this.elementRef.nativeElement);
+          this.elementRef.nativeElement
+          .querySelector(query)
           .addEventListener("click", e => {
             if (reserved) {
-              console.log(e);
-              // this.remove(seat.seatCode);
+              // console.log(e);
+              this.remove(seat.seatCode, e);
             } else {
-              console.log(e);
+              // console.log(e);
               this.reserve(seat.seatCode);
             }
           });
+        }
+
       });
       
       // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
@@ -158,6 +165,21 @@ export class MapComponent implements AfterViewInit {
       marker.setIconAngle(seat.angle);
 
       this.markers.push(marker);
+  }
+
+  popupQueries(seat):string[] {
+    var queries:string[] = [];
+    let reserved = this.reservedStatusFor(seat.seatCode);
+    if (reserved == false) {
+      queries.push('.reserve');
+    } else {
+      let reservations = this.reservationsInFilterFor(seat.seatCode);
+      for (var i = 0; i < reservations.length; i += 1) {
+        queries.push('.remove'+i);
+      }
+    }
+    console.log('popupQueries: \n' + queries);
+    return queries;
   }
 
   popupFor(seat):string {
@@ -182,11 +204,15 @@ export class MapComponent implements AfterViewInit {
 
     var reservationButtonsSection = "";
     for (var i = 0; i < reservations.length; i += 1) {
+      let lineBreak = i == reservations.length - 1 ? "" : "\n";
       let reservation = reservations[i];
       let timeFrame = reservation.start  + ' - ' + reservation.end;
-      var removeReservation = "<button class='remove'>Remove Reservation</button>";
-      reservationButtonsSection += '<p style = "margin:0;">' + removeReservation + '  ' + timeFrame + '</p>'; 
+      var removeReservation = "<button class='remove" + i + "' id = '" + timeFrame + "'>Remove Reservation</button>";
+      reservationButtonsSection += '<p style = "margin:0;">' + removeReservation + '  ' + timeFrame + '</p>' + lineBreak; 
     }
+
+    console.log('---------------------------' + seat.name);
+    console.log(reservationButtonsSection);
 
     var popup = '<div class="card">' +
                   '<h1 style = "margin:0;">' + seat.name + '</h1>' +
@@ -331,7 +357,7 @@ export class MapComponent implements AfterViewInit {
   halfDayMorningBlock():TimeBlock {
     let timeBlock = new TimeBlock();
     timeBlock.start = '08:00:00';
-    timeBlock.end = '12:00:00';
+    timeBlock.end = '11:00:00';
     return timeBlock;
   }
 
@@ -395,15 +421,36 @@ export class MapComponent implements AfterViewInit {
     );
   }
 
-  remove(seatCode) {
-    console.log('remove: \n' + seatCode);
+  remove(seatCode, e) {
+    // console.log('remove: \n' + seatCode);
+    // console.log(e.srcElement.id);
     let seat = this.seatObjectFor(seatCode)
     if (seat == null) {
       return;
     }
 
+    var seatReservation = new Seat();
+    seatReservation.FloorCode = seat.FloorCode;
+    seatReservation.buildingCode = seat.buildingCode;
+    seatReservation.seatCode = seat.seatCode;
+    seatReservation.seatName = seat.seatName;
+    seatReservation.reservations = [];
+
+    var reservationTimeBlock = this.reservationFor(e.srcElement.id); 
+
+    var reservation = this.reservationIdFor(reservationTimeBlock, seat);
+
+    if (reservation == null) {
+      console.log("Didn't Find Reservation");
+      return;
+    }
+
+    console.log('remove: \n' + seat.seatCode + " with reservation " + e.srcElement.id);
+
+    seatReservation.reservations.push(reservation);
+
     var seatReservationsToCancel:Seat[] = [];
-    seatReservationsToCancel.push(seat);
+    seatReservationsToCancel.push(seatReservation);
 
     console.log(seatReservationsToCancel);
     this.apiService.deleteReservation(seatReservationsToCancel)
@@ -412,6 +459,33 @@ export class MapComponent implements AfterViewInit {
       err => console.error('Observer got an error: ' + err),
       () => this.reloadFunction()
     );
+  }
+
+  reservationIdFor(timeBlock:TimeBlock, seat:Seat):Reservation {
+    for (var i = 0; i < seat.reservations.length; i += 1) {
+      let reservation = seat.reservations[i];
+      if (reservation.start == timeBlock.start && reservation.end == timeBlock.end) {
+        return reservation;
+      }
+    }
+    return null;
+  }
+
+  reservationFor(timeFrame): TimeBlock {
+    function isTimeFrameTimeBlock(timeFrame:string, timeBlock:TimeBlock): boolean {
+      let blockTimeFrame = timeBlock.start + " - " + timeBlock.end;
+      return timeFrame == blockTimeFrame;
+    }
+
+    if (isTimeFrameTimeBlock(timeFrame, this.halfDayMorningBlock())) {
+      return this.halfDayMorningBlock();
+    }
+
+    if (isTimeFrameTimeBlock(timeFrame, this.halfDayAfternoonBlock())) {
+      return this.halfDayAfternoonBlock();
+    }
+
+    return this.allDayTimeBlock();
   }
 
   seatObjectFor(seatCode):Seat {
