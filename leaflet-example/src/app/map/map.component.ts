@@ -25,8 +25,6 @@ import { Reservation } from "../reservation";
   styleUrls: ['./map.component.css']
 })
 
-
-
 export class MapComponent implements AfterViewInit {
 
   filterDate:Date;
@@ -282,91 +280,17 @@ export class MapComponent implements AfterViewInit {
     return [year, month, day].join('-');
   }
 
-  isReserved(seat):boolean {
-    if (seat.reservations.length == 0) {
-      return false;
-    }
-    var i;
-    for (i = 0; i < seat.reservations.length; i += 1) {
-      var reservation = seat.reservations[i];
-      let startReservation = reservation.date + 'T' + reservation.start;
-      let endReservation = reservation.date + 'T' + reservation.end;
-
-      console.log('start: ' + startReservation + ' end: ' + endReservation);
-
-      var startDateOfReservation = new Date(startReservation);
-      var endDateOfReservation = new Date(endReservation);
-      // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
-
-      // console.log('startDateOfReservation: ' + startDateOfReservation.toString() + '\n' +
-      //             'currentDate: ' + new Date().toString() + '\n' +
-      //             'endDateOfReservation: ' + endDateOfReservation.toString());
-
-      // if (this.isReservedFor(startDateOfReservation) && this.isReservedFor(endDateOfReservation)) {
-      //   // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
-      //   return true;
-      // }
-      
-
-      // if (startD >= startdate && startD <= enddate) || (startdate >= startD && startdate <= endD) {
-        
-      // }
-
-      if ((startDateOfReservation.getTime() >= this.startDateFilter().getTime() && startDateOfReservation.getTime() <= this.endDateFilter().getTime()) || 
-          (this.startDateFilter().getTime() >= startDateOfReservation.getTime() && this.startDateFilter().getTime() <= endDateOfReservation.getTime())) {
-      } else {
-        // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
-        return true;
-      }
-    }
-    return false;
-  }
-
   doesReservationOverlap(reservation) {
     let startReservation = reservation.date + 'T' + reservation.start;
     let endReservation = reservation.date + 'T' + reservation.end;
-    var startDateOfReservation = new Date(startReservation);
-    var endDateOfReservation = new Date(endReservation);
+    let startDateOfReservation = new Date(startReservation);
+    let endDateOfReservation = new Date(endReservation);
     return this.doDatesOverlaps(startDateOfReservation, endDateOfReservation, this.startDateFilter(), this.endDateFilter());
   }
 
   doDatesOverlaps(date1Start, date1DEnd, date2Start, date2End):boolean {
     return ((date1Start.getTime() >= date2Start.getTime() && date1Start.getTime() <= date2End.getTime()) || 
            (date2Start.getTime() >= date1Start.getTime() && date2Start.getTime() <= date1DEnd.getTime()));
-  }
-
-  // isReservedFor(reservation:Date):boolean {
-  //   if (this.startDateFilter().getTime() < reservation.getTime() && reservation.getTime() < this.endDateFilter().getTime()) {
-  //     // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
-  //     return true;
-  //   }
-  //   return false;
-  // }
-  
-  // https://stackoverflow.com/questions/22784883/check-if-more-than-two-date-ranges-overlap
-  dateRangeOverlaps(a_start, a_end, b_start, b_end):boolean {
-    if (a_start < b_start && b_start < a_end) return true; // b starts in a
-    if (a_start < b_end   && b_end   < a_end) return true; // b ends in a
-    if (b_start <  a_start && a_end   <  b_end) return true; // a in b
-    return false;
-  }
-  
-  multipleDateRangeOverlaps(timeEntries) {
-    let i = 0, j = 0;
-    let timeIntervals = timeEntries.filter(entry => entry.from != null && entry.to != null && entry.from.length === 8 && entry.to.length === 8);
-
-    if (timeIntervals != null && timeIntervals.length > 1)
-    for (i = 0; i < timeIntervals.length - 1; i += 1) {
-      for (j = i + 1; j < timeIntervals.length; j += 1) {
-              if (
-              this.dateRangeOverlaps( timeIntervals[i].from.getTime(), 
-                                      timeIntervals[i].to.getTime(),
-                                      timeIntervals[j].from.getTime(), 
-                                      timeIntervals[j].to.getTime())
-              ) return true;
-          }
-      }
-    return false;
   }
 
   //------------------------------ POC
