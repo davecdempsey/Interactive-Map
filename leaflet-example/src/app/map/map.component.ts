@@ -132,9 +132,22 @@ export class MapComponent implements AfterViewInit {
       
       let reserved = this.reservedStatusFor(seat.seatCode);
 
-      var buttonType = reserved ? ".remove" : ".reserve";
+      let printedOutCorrect = false;
+      let reservations = this.reservationsFor(seat.seatCode);
+      if (this.isReservationUsers(reservations)) {
+        if (reservations.length > 0) {
+          let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
+          if (debug == '') {
+            console.log(seat.seatCode + ' no overlapping reservations');
+          } else {
+            printedOutCorrect = true;
+            console.log(debug);
+          }
+        }
+      }
+      
       var queries:string[] = this.popupQueries(seat);
-      var icon = this.iconFor(seat.seatCode);
+      var icon = this.iconFor(seat.seatCode, printedOutCorrect);
       var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
       marker.bindPopup(this.popupFor(seat));
       marker.on("popupopen", () => {
@@ -158,7 +171,7 @@ export class MapComponent implements AfterViewInit {
       
       // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
       this.map.on('zoomend', () => {
-        marker.setIcon(this.iconFor(seat.seatCode));
+        marker.setIcon(this.iconFor(seat.seatCode, false));
       });
 
       marker.setIconAngle(seat.angle);
@@ -227,7 +240,7 @@ export class MapComponent implements AfterViewInit {
     var allReservations = this.reservationsFor(seatCode);
     for (var i = 0; i < allReservations.length; i += 1) {
       var reservation = allReservations[i];
-      debugString += 'seatCode:' + seatCode + '\n' + this.printOutReservation(reservation)+ '\n';
+      debugString += 'seatCode:' + seatCode + ' has reservations overlap: ' + this.doesReservationOverlap(reservation) + '\n' + this.printOutReservation(reservation)+ '\n';
     }
     return debugString;
   }
@@ -252,7 +265,7 @@ export class MapComponent implements AfterViewInit {
     return seat.reservations;
   }
 
-  iconFor(seatCode):L.icon {
+  iconFor(seatCode, debug):L.icon {
     var currentZoom = this.map.getZoom();
     var percentageOfMap = currentZoom;
     
@@ -267,25 +280,29 @@ export class MapComponent implements AfterViewInit {
 
     var newHeight = percentageOfMap * this.seatIconHeight;
     var halfHeight = newHeight/ 2;
+    let reservations = this.reservationsInFilterFor(seatCode);
+    let reserved = reservations.length > 0;  
+    let reservedIcon = this.isReservationUsers(reservations) ? '../../assets/userReservedSeat.png' : '../../assets/reservedSeat.png';
+    let iconURL = reserved ? reservedIcon : '../../assets/reservableSeat.png'; 
 
-    var seat = this.seatFor(seatCode)
-    if (seat.reservations.length > 0) {
-      let debug = this.reservationsInFilterForDebugFor(seatCode);
-      if (debug == '') {
-        console.log('Issues with ' + seatCode);
-      } else {
-        console.log(debug);
-      }
+    if (debug) {
+      console.log(seatCode + ' is reserved: ' + reserved + ' using icon ' + iconURL);
     }
-
-    let reserved = this.reservedStatusFor(seatCode);  
-    let iconURL = reserved ? '../../assets/reservedSeat.png' : '../../assets/reservableSeat.png'; 
     return L.icon({
       iconUrl: iconURL,
       iconSize:     [newWidth, newHeight], // size of the icon
       iconAnchor:   [halfWidth, halfHeight], // point of the icon which will correspond to marker's location
       popupAnchor:  [0, 0] // point from which the popup should open relative to the iconAnchor
     });
+  }
+
+  isReservationUsers(reservations):boolean {
+    for (var i = 0; i < reservations.length; i += 1) {
+      if (reservations[i].emailAddress == this.emailAddress) {
+        return true;
+      }
+    }
+    return false;
   }
 
   reservedStatusFor(seatCode):boolean {
@@ -355,10 +372,9 @@ export class MapComponent implements AfterViewInit {
            'this.endDateFilter():' + this.endDateFilter().getTime();
   }
 
+  // https://stackoverflow.com/questions/325933/determine-whether-two-date-ranges-overlap#answer-325964
   doDatesOverlaps(date1Start, date1End, date2Start, date2End):boolean {
-    return ((date1Start.getTime() > date2Start.getTime() && date1Start.getTime() < date2End.getTime()) || 
-           (date2Start.getTime() > date1Start.getTime() && date2Start.getTime() < date1End.getTime()) ||
-           (date2Start.getTime() == date1Start.getTime() && date2End.getTime() == date1End.getTime()));
+    return Math.max(date1Start.getTime(), date2Start.getTime()) < Math.min(date1End.getTime(), date2End.getTime());
   }
 
   //------------------------------ POC
