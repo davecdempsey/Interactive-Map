@@ -140,8 +140,8 @@ export class MapComponent implements AfterViewInit {
       marker.on("popupopen", () => {
         for (var i = 0; i < queries.length; i += 1) {
           let query = queries[i];
-          console.log(query);
-          console.log(this.elementRef.nativeElement);
+          // console.log(query);
+          // console.log(this.elementRef.nativeElement);
           this.elementRef.nativeElement
           .querySelector(query)
           .addEventListener("click", e => {
@@ -154,7 +154,6 @@ export class MapComponent implements AfterViewInit {
             }
           });
         }
-
       });
       
       // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
@@ -178,7 +177,7 @@ export class MapComponent implements AfterViewInit {
         queries.push('.remove'+i);
       }
     }
-    console.log('popupQueries: \n' + queries);
+    // console.log('popupQueries: \n' + queries);
     return queries;
   }
 
@@ -211,8 +210,8 @@ export class MapComponent implements AfterViewInit {
       reservationButtonsSection += '<p style = "margin:0;">' + removeReservation + '  ' + timeFrame + '</p>' + lineBreak; 
     }
 
-    console.log('---------------------------' + seat.name);
-    console.log(reservationButtonsSection);
+    // console.log('---------------------------' + seat.name);
+    // console.log(reservationButtonsSection);
 
     var popup = '<div class="card">' +
                   '<h1 style = "margin:0;">' + seat.name + '</h1>' +
@@ -221,6 +220,16 @@ export class MapComponent implements AfterViewInit {
                   reservationButtonsSection +
                 '</div>';
     return popup;
+  }
+
+  reservationsInFilterForDebugFor(seatCode):string {
+    var debugString:string = '';
+    var allReservations = this.reservationsFor(seatCode);
+    for (var i = 0; i < allReservations.length; i += 1) {
+      var reservation = allReservations[i];
+      debugString += 'seatCode:' + seatCode + '\n' + this.printOutReservation(reservation)+ '\n';
+    }
+    return debugString;
   }
 
   reservationsInFilterFor(seatCode):Reservation[] {
@@ -258,6 +267,17 @@ export class MapComponent implements AfterViewInit {
 
     var newHeight = percentageOfMap * this.seatIconHeight;
     var halfHeight = newHeight/ 2;
+
+    var seat = this.seatFor(seatCode)
+    if (seat.reservations.length > 0) {
+      let debug = this.reservationsInFilterForDebugFor(seatCode);
+      if (debug == '') {
+        console.log('Issues with ' + seatCode);
+      } else {
+        console.log(debug);
+      }
+    }
+
     let reserved = this.reservedStatusFor(seatCode);  
     let iconURL = reserved ? '../../assets/reservedSeat.png' : '../../assets/reservableSeat.png'; 
     return L.icon({
@@ -314,9 +334,31 @@ export class MapComponent implements AfterViewInit {
     return this.doDatesOverlaps(startDateOfReservation, endDateOfReservation, this.startDateFilter(), this.endDateFilter());
   }
 
-  doDatesOverlaps(date1Start, date1DEnd, date2Start, date2End):boolean {
-    return ((date1Start.getTime() >= date2Start.getTime() && date1Start.getTime() <= date2End.getTime()) || 
-           (date2Start.getTime() >= date1Start.getTime() && date2Start.getTime() <= date1DEnd.getTime()));
+  printOutReservation(reservation) {
+    let startReservation = reservation.date + 'T' + reservation.start;
+    let endReservation = reservation.date + 'T' + reservation.end;
+    let startDateOfReservation = new Date(startReservation);
+    let endDateOfReservation = new Date(endReservation);
+
+    // console.log('startDateOfReservation:' + startDateOfReservation.getTime() + '\n' +
+    //             'endDateOfReservation:' + endDateOfReservation.getTime() + '\n' +
+    //             'this.startDateFilter():' + this.startDateFilter().getTime() + '\n' +
+    //             'this.endDateFilter():' + this.endDateFilter().getTime());
+
+    return 'startReservation:' + reservation.date + ' ' + reservation.start + '\n' +
+           'endReservation:' + reservation.date + ' ' + reservation.end + '\n' +
+           'startFilterTime:' + this.formatDate(this.filterDate)+ ' ' + this.startFilterTime + '\n' +
+           'endFilterTime:' + this.formatDate(this.filterDate)+ ' ' + this.endFilterTime + '\n' +
+           'startDateOfReservation:' + startDateOfReservation.getTime() + '\n' +
+           'endDateOfReservation:' + endDateOfReservation.getTime() + '\n' +
+           'this.startDateFilter():' + this.startDateFilter().getTime() + '\n' +
+           'this.endDateFilter():' + this.endDateFilter().getTime();
+  }
+
+  doDatesOverlaps(date1Start, date1End, date2Start, date2End):boolean {
+    return ((date1Start.getTime() > date2Start.getTime() && date1Start.getTime() < date2End.getTime()) || 
+           (date2Start.getTime() > date1Start.getTime() && date2Start.getTime() < date1End.getTime()) ||
+           (date2Start.getTime() == date1Start.getTime() && date2End.getTime() == date1End.getTime()));
   }
 
   //------------------------------ POC
@@ -357,7 +399,7 @@ export class MapComponent implements AfterViewInit {
   halfDayMorningBlock():TimeBlock {
     let timeBlock = new TimeBlock();
     timeBlock.start = '08:00:00';
-    timeBlock.end = '11:00:00';
+    timeBlock.end = '12:00:00';
     return timeBlock;
   }
 
