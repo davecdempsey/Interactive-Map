@@ -168,6 +168,10 @@ export class MapComponent implements AfterViewInit {
           });
         }
       });
+
+      marker.on("click", () => {
+        this.selected(seat.seatCode);
+      });
       
       // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
       this.map.on('zoomend', () => {
@@ -177,6 +181,10 @@ export class MapComponent implements AfterViewInit {
       marker.setIconAngle(seat.angle);
 
       this.markers.push(marker);
+  }
+
+  selected(seatCode) {
+    console.log("click " + seatCode);
   }
 
   popupQueries(seat):string[] {
