@@ -132,66 +132,32 @@ export class MapComponent implements AfterViewInit {
       
       let reserved = this.reservedStatusFor(seat.seatCode);
 
-      let printedOutCorrect = false;
-      let reservations = this.reservationsFor(seat.seatCode);
-      if (this.isReservationUsers(reservations)) {
-        if (reservations.length > 0) {
-          let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
-          if (debug == '') {
-            console.log(seat.seatCode + ' no overlapping reservations');
-          } else {
-            printedOutCorrect = true;
-            console.log(debug);
-          }
-        }
-      }
-      
-      var queries:string[] = this.popupQueries(seat);
-      var icon = this.iconFor(seat.seatCode, printedOutCorrect);
+      var buttonType = reserved ? ".remove" : ".reserve";
+      var icon = this.iconFor(seat.seatCode);
       var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
       marker.bindPopup(this.popupFor(seat));
       marker.on("popupopen", () => {
-        for (var i = 0; i < queries.length; i += 1) {
-          let query = queries[i];
-          // console.log(query);
-          // console.log(this.elementRef.nativeElement);
-          this.elementRef.nativeElement
-          .querySelector(query)
+        this.elementRef.nativeElement
+          .querySelector(buttonType)
           .addEventListener("click", e => {
             if (reserved) {
-              // console.log(e);
-              this.remove(seat.seatCode, e);
+              console.log(e);
+              // this.remove(seat.seatCode);
             } else {
-              // console.log(e);
+              console.log(e);
               this.reserve(seat.seatCode);
             }
           });
-        }
       });
       
       // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
       this.map.on('zoomend', () => {
-        marker.setIcon(this.iconFor(seat.seatCode, false));
+        marker.setIcon(this.iconFor(seat.seatCode));
       });
 
       marker.setIconAngle(seat.angle);
 
       this.markers.push(marker);
-  }
-
-  popupQueries(seat):string[] {
-    var queries:string[] = [];
-    let reserved = this.reservedStatusFor(seat.seatCode);
-    if (reserved == false) {
-      queries.push('.reserve');
-    } else {
-      let reservations = this.reservationsInFilterFor(seat.seatCode);
-      for (var i = 0; i < reservations.length; i += 1) {
-        queries.push('.remove'+i);
-      }
-    }
-    // console.log('popupQueries: \n' + queries);
-    return queries;
   }
 
   popupFor(seat):string {
@@ -216,15 +182,11 @@ export class MapComponent implements AfterViewInit {
 
     var reservationButtonsSection = "";
     for (var i = 0; i < reservations.length; i += 1) {
-      let lineBreak = i == reservations.length - 1 ? "" : "\n";
       let reservation = reservations[i];
       let timeFrame = reservation.start  + ' - ' + reservation.end;
-      var removeReservation = "<button class='remove" + i + "' id = '" + timeFrame + "'>Remove Reservation</button>";
-      reservationButtonsSection += '<p style = "margin:0;">' + removeReservation + '  ' + timeFrame + '</p>' + lineBreak; 
+      var removeReservation = "<button class='remove'>Remove Reservation</button>";
+      reservationButtonsSection += '<p style = "margin:0;">' + removeReservation + '  ' + timeFrame + '</p>'; 
     }
-
-    // console.log('---------------------------' + seat.name);
-    // console.log(reservationButtonsSection);
 
     var popup = '<div class="card">' +
                   '<h1 style = "margin:0;">' + seat.name + '</h1>' +
@@ -233,16 +195,6 @@ export class MapComponent implements AfterViewInit {
                   reservationButtonsSection +
                 '</div>';
     return popup;
-  }
-
-  reservationsInFilterForDebugFor(seatCode):string {
-    var debugString:string = '';
-    var allReservations = this.reservationsFor(seatCode);
-    for (var i = 0; i < allReservations.length; i += 1) {
-      var reservation = allReservations[i];
-      debugString += 'seatCode:' + seatCode + ' has reservations overlap: ' + this.doesReservationOverlap(reservation) + '\n' + this.printOutReservation(reservation)+ '\n';
-    }
-    return debugString;
   }
 
   reservationsInFilterFor(seatCode):Reservation[] {
@@ -265,7 +217,7 @@ export class MapComponent implements AfterViewInit {
     return seat.reservations;
   }
 
-  iconFor(seatCode, debug):L.icon {
+  iconFor(seatCode):L.icon {
     var currentZoom = this.map.getZoom();
     var percentageOfMap = currentZoom;
     
@@ -280,29 +232,14 @@ export class MapComponent implements AfterViewInit {
 
     var newHeight = percentageOfMap * this.seatIconHeight;
     var halfHeight = newHeight/ 2;
-    let reservations = this.reservationsInFilterFor(seatCode);
-    let reserved = reservations.length > 0;  
-    let reservedIcon = this.isReservationUsers(reservations) ? '../../assets/userReservedSeat.png' : '../../assets/reservedSeat.png';
-    let iconURL = reserved ? reservedIcon : '../../assets/reservableSeat.png'; 
-
-    if (debug) {
-      console.log(seatCode + ' is reserved: ' + reserved + ' using icon ' + iconURL);
-    }
+    let reserved = this.reservedStatusFor(seatCode);  
+    let iconURL = reserved ? '../../assets/reservedSeat.png' : '../../assets/reservableSeat.png'; 
     return L.icon({
       iconUrl: iconURL,
       iconSize:     [newWidth, newHeight], // size of the icon
       iconAnchor:   [halfWidth, halfHeight], // point of the icon which will correspond to marker's location
       popupAnchor:  [0, 0] // point from which the popup should open relative to the iconAnchor
     });
-  }
-
-  isReservationUsers(reservations):boolean {
-    for (var i = 0; i < reservations.length; i += 1) {
-      if (reservations[i].emailAddress == this.emailAddress) {
-        return true;
-      }
-    }
-    return false;
   }
 
   reservedStatusFor(seatCode):boolean {
@@ -343,38 +280,91 @@ export class MapComponent implements AfterViewInit {
     return [year, month, day].join('-');
   }
 
+  isReserved(seat):boolean {
+    if (seat.reservations.length == 0) {
+      return false;
+    }
+    var i;
+    for (i = 0; i < seat.reservations.length; i += 1) {
+      var reservation = seat.reservations[i];
+      let startReservation = reservation.date + 'T' + reservation.start;
+      let endReservation = reservation.date + 'T' + reservation.end;
+
+      console.log('start: ' + startReservation + ' end: ' + endReservation);
+
+      var startDateOfReservation = new Date(startReservation);
+      var endDateOfReservation = new Date(endReservation);
+      // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
+
+      // console.log('startDateOfReservation: ' + startDateOfReservation.toString() + '\n' +
+      //             'currentDate: ' + new Date().toString() + '\n' +
+      //             'endDateOfReservation: ' + endDateOfReservation.toString());
+
+      // if (this.isReservedFor(startDateOfReservation) && this.isReservedFor(endDateOfReservation)) {
+      //   // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
+      //   return true;
+      // }
+      
+
+      // if (startD >= startdate && startD <= enddate) || (startdate >= startD && startdate <= endD) {
+        
+      // }
+
+      if ((startDateOfReservation.getTime() >= this.startDateFilter().getTime() && startDateOfReservation.getTime() <= this.endDateFilter().getTime()) || 
+          (this.startDateFilter().getTime() >= startDateOfReservation.getTime() && this.startDateFilter().getTime() <= endDateOfReservation.getTime())) {
+      } else {
+        // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
+        return true;
+      }
+    }
+    return false;
+  }
+
   doesReservationOverlap(reservation) {
     let startReservation = reservation.date + 'T' + reservation.start;
     let endReservation = reservation.date + 'T' + reservation.end;
-    let startDateOfReservation = new Date(startReservation);
-    let endDateOfReservation = new Date(endReservation);
+    var startDateOfReservation = new Date(startReservation);
+    var endDateOfReservation = new Date(endReservation);
     return this.doDatesOverlaps(startDateOfReservation, endDateOfReservation, this.startDateFilter(), this.endDateFilter());
   }
 
-  printOutReservation(reservation) {
-    let startReservation = reservation.date + 'T' + reservation.start;
-    let endReservation = reservation.date + 'T' + reservation.end;
-    let startDateOfReservation = new Date(startReservation);
-    let endDateOfReservation = new Date(endReservation);
-
-    // console.log('startDateOfReservation:' + startDateOfReservation.getTime() + '\n' +
-    //             'endDateOfReservation:' + endDateOfReservation.getTime() + '\n' +
-    //             'this.startDateFilter():' + this.startDateFilter().getTime() + '\n' +
-    //             'this.endDateFilter():' + this.endDateFilter().getTime());
-
-    return 'startReservation:' + reservation.date + ' ' + reservation.start + '\n' +
-           'endReservation:' + reservation.date + ' ' + reservation.end + '\n' +
-           'startFilterTime:' + this.formatDate(this.filterDate)+ ' ' + this.startFilterTime + '\n' +
-           'endFilterTime:' + this.formatDate(this.filterDate)+ ' ' + this.endFilterTime + '\n' +
-           'startDateOfReservation:' + startDateOfReservation.getTime() + '\n' +
-           'endDateOfReservation:' + endDateOfReservation.getTime() + '\n' +
-           'this.startDateFilter():' + this.startDateFilter().getTime() + '\n' +
-           'this.endDateFilter():' + this.endDateFilter().getTime();
+  doDatesOverlaps(date1Start, date1DEnd, date2Start, date2End):boolean {
+    return ((date1Start.getTime() >= date2Start.getTime() && date1Start.getTime() <= date2End.getTime()) || 
+           (date2Start.getTime() >= date1Start.getTime() && date2Start.getTime() <= date1DEnd.getTime()));
   }
 
-  // https://stackoverflow.com/questions/325933/determine-whether-two-date-ranges-overlap#answer-325964
-  doDatesOverlaps(date1Start, date1End, date2Start, date2End):boolean {
-    return Math.max(date1Start.getTime(), date2Start.getTime()) < Math.min(date1End.getTime(), date2End.getTime());
+  // isReservedFor(reservation:Date):boolean {
+  //   if (this.startDateFilter().getTime() < reservation.getTime() && reservation.getTime() < this.endDateFilter().getTime()) {
+  //     // console.log(seat.seatCode + ' start: ' + startDateOfReservation.toString() + ' end: ' + endDateOfReservation.toString());
+  //     return true;
+  //   }
+  //   return false;
+  // }
+  
+  // https://stackoverflow.com/questions/22784883/check-if-more-than-two-date-ranges-overlap
+  dateRangeOverlaps(a_start, a_end, b_start, b_end):boolean {
+    if (a_start < b_start && b_start < a_end) return true; // b starts in a
+    if (a_start < b_end   && b_end   < a_end) return true; // b ends in a
+    if (b_start <  a_start && a_end   <  b_end) return true; // a in b
+    return false;
+  }
+  
+  multipleDateRangeOverlaps(timeEntries) {
+    let i = 0, j = 0;
+    let timeIntervals = timeEntries.filter(entry => entry.from != null && entry.to != null && entry.from.length === 8 && entry.to.length === 8);
+
+    if (timeIntervals != null && timeIntervals.length > 1)
+    for (i = 0; i < timeIntervals.length - 1; i += 1) {
+      for (j = i + 1; j < timeIntervals.length; j += 1) {
+              if (
+              this.dateRangeOverlaps( timeIntervals[i].from.getTime(), 
+                                      timeIntervals[i].to.getTime(),
+                                      timeIntervals[j].from.getTime(), 
+                                      timeIntervals[j].to.getTime())
+              ) return true;
+          }
+      }
+    return false;
   }
 
   //------------------------------ POC
@@ -479,36 +469,15 @@ export class MapComponent implements AfterViewInit {
     );
   }
 
-  remove(seatCode, e) {
-    // console.log('remove: \n' + seatCode);
-    // console.log(e.srcElement.id);
+  remove(seatCode) {
+    console.log('remove: \n' + seatCode);
     let seat = this.seatObjectFor(seatCode)
     if (seat == null) {
       return;
     }
 
-    var seatReservation = new Seat();
-    seatReservation.FloorCode = seat.FloorCode;
-    seatReservation.buildingCode = seat.buildingCode;
-    seatReservation.seatCode = seat.seatCode;
-    seatReservation.seatName = seat.seatName;
-    seatReservation.reservations = [];
-
-    var reservationTimeBlock = this.reservationFor(e.srcElement.id); 
-
-    var reservation = this.reservationIdFor(reservationTimeBlock, seat);
-
-    if (reservation == null) {
-      console.log("Didn't Find Reservation");
-      return;
-    }
-
-    console.log('remove: \n' + seat.seatCode + " with reservation " + e.srcElement.id);
-
-    seatReservation.reservations.push(reservation);
-
     var seatReservationsToCancel:Seat[] = [];
-    seatReservationsToCancel.push(seatReservation);
+    seatReservationsToCancel.push(seat);
 
     console.log(seatReservationsToCancel);
     this.apiService.deleteReservation(seatReservationsToCancel)
@@ -517,33 +486,6 @@ export class MapComponent implements AfterViewInit {
       err => console.error('Observer got an error: ' + err),
       () => this.reloadFunction()
     );
-  }
-
-  reservationIdFor(timeBlock:TimeBlock, seat:Seat):Reservation {
-    for (var i = 0; i < seat.reservations.length; i += 1) {
-      let reservation = seat.reservations[i];
-      if (reservation.start == timeBlock.start && reservation.end == timeBlock.end) {
-        return reservation;
-      }
-    }
-    return null;
-  }
-
-  reservationFor(timeFrame): TimeBlock {
-    function isTimeFrameTimeBlock(timeFrame:string, timeBlock:TimeBlock): boolean {
-      let blockTimeFrame = timeBlock.start + " - " + timeBlock.end;
-      return timeFrame == blockTimeFrame;
-    }
-
-    if (isTimeFrameTimeBlock(timeFrame, this.halfDayMorningBlock())) {
-      return this.halfDayMorningBlock();
-    }
-
-    if (isTimeFrameTimeBlock(timeFrame, this.halfDayAfternoonBlock())) {
-      return this.halfDayAfternoonBlock();
-    }
-
-    return this.allDayTimeBlock();
   }
 
   seatObjectFor(seatCode):Seat {
