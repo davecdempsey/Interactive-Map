@@ -227,7 +227,12 @@ export class MapComponent implements AfterViewInit {
       let lineBreak = i == reservations.length - 1 ? "" : "\n";
       let reservation = reservations[i];
       let timeFrame = reservation.start  + ' - ' + reservation.end;
+
       var removeReservation = "<button class='remove" + i + "' id = '" + timeFrame + "'>Remove Reservation</button>";
+      if (reservations[i].emailAddress != this.emailAddress) {
+        removeReservation = "Reserved ";
+      }
+
       reservationButtonsSection += '<p style = "margin:0;">' + removeReservation + '  ' + timeFrame + '</p>' + lineBreak; 
     }
 
