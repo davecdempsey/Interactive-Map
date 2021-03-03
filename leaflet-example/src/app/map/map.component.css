@@ -15,4 +15,12 @@
   #map {
     height: 100%;
   }
-  
+
+/* https://medium.com/javascript-everyday/overriding-css-properties-of-third-party-components-in-angular-6a57f143b9d7 */
+::ng-deep .leaflet-tooltip-pane   { z-index: 500; }
+
+::ng-deep .leaflet-tooltip {
+	background-color: #fff0;
+	border: 1px solid #fff0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0);
+}

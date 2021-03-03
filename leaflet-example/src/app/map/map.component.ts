@@ -35,6 +35,7 @@ export class MapComponent implements AfterViewInit {
   map:L.map;
 
   markers:L.Marker[];
+  nameMarkers:L.Marker[];
 
   startFilterTime:string;
   endFilterTime:string;
@@ -46,9 +47,11 @@ export class MapComponent implements AfterViewInit {
   constructor(private apiService: ApiService, private elementRef: ElementRef, private datepipe: DatePipe) {}
 
   ngAfterViewInit(): void {
-    this.initPOC();
+    this.initPOC(); 
 
+    this.nameMarkers = [];
     this.markers = [];
+    
     this.initMap();
   }
 
@@ -61,15 +64,29 @@ export class MapComponent implements AfterViewInit {
     if (this.markers.length > 0) {
       this.removeAllMarkers();
     }
+
+    if (this.nameMarkers != null) {
+      if (this.nameMarkers.length > 0) {
+        this.removeAllNameMarkers();
+      }
+    }
+
     json.seats.forEach(seat => this.addSeat(seat));
+    json.seats.forEach(seat => this.addNameFor(seat));
   }
 
   removeAllMarkers():void {
-    var i;
-    for (i = 0; i < this.markers.length; i += 1) {
+    for (var i = 0; i < this.markers.length; i += 1) {
       this.map.removeLayer(this.markers[i]);
     }
     this.markers = [];
+  }
+
+  removeAllNameMarkers():void {
+    for (var i = 0; i < this.nameMarkers.length; i += 1) {
+      this.map.removeLayer(this.nameMarkers[i]);
+    }
+    this.nameMarkers = [];
   }
 
   private initMap(): void {
@@ -100,87 +117,171 @@ export class MapComponent implements AfterViewInit {
 
     L.imageOverlay(svgLocation, bounds).addTo(this.map);
     this.map.setView([svgHeight/2, svgWidth/2], -0.4);
+
+    // changing zoom controls
+    // https://stackoverflow.com/questions/33614912/how-to-locate-leaflet-zoom-control-in-a-desired-position
+    // Create additional Control placeholders
+    function addControlPlaceholders(map) {
+      var corners = map._controlCorners,
+            l = 'leaflet-',
+            container = map._controlContainer;
+
+        function createCorner(vSide, hSide) {
+            var className = l + vSide + ' ' + l + hSide;
+
+            corners[vSide + hSide] = L.DomUtil.create('div', className, container);
+        }
+
+        createCorner('top', 'left');
+        createCorner('top', 'right');
+        createCorner('bottom', 'left');
+        createCorner('bottom', 'right');
+    
+        createCorner('top', 'center');
+        createCorner('middle', 'center');
+        createCorner('middle', 'left');
+        createCorner('middle', 'right');
+        createCorner('bottom', 'center');
+    }
+    addControlPlaceholders(this.map);
+
+    // Change the position of the Zoom Control to a newly created placeholder.
+    this.map.zoomControl.setPosition('bottomcenter');
   }
 
   modifyXPositionForBounds(x) {
-      var offsetX = this.seatIconWidth / 2
-      return offsetX + x;
+    var offsetX = this.seatIconWidth / 2
+    return offsetX + x;
   }
 
   modifyYPositionForBounds(y) {
-      var offsetY = this.seatIconHeight / 2
-      return -1 * offsetY - y;
+    var offsetY = this.seatIconHeight / 2
+    return -1 * offsetY - y;
   }
 
   // Swap the x and y coordinates
   // https://gis.stackexchange.com/questions/54065/leaflet-geojson-coordinate-problem
   modifyForGeoJSON(x, y) {
-      return [y, x];
+    return [y, x];
   }
 
   addSeat(seat):void {
-      var x = seat.x;
-      var y = seat.y;
+    var x = seat.x;
+    var y = seat.y;
 
-      var modifiedX = this.modifyXPositionForBounds(x);
-      var modifiedY = this.modifyYPositionForBounds(y);
+    var modifiedX = this.modifyXPositionForBounds(x);
+    var modifiedY = this.modifyYPositionForBounds(y);
 
-      var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
+    var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
 
 
-      var markerLatLong = L.latLng(newPosition);
-      
-      let reserved = this.reservedStatusFor(seat.seatCode);
+    var markerLatLong = L.latLng(newPosition);
+    
+    let reserved = this.reservedStatusFor(seat.seatCode);
 
-      let printedOutCorrect = false;
-      let reservations = this.reservationsFor(seat.seatCode);
-      if (this.isReservationUsers(reservations)) {
-        if (reservations.length > 0) {
-          let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
-          if (debug == '') {
-            console.log(seat.seatCode + ' no overlapping reservations');
-          } else {
-            printedOutCorrect = true;
-            console.log(debug);
-          }
+    let printedOutCorrect = false;
+    let reservations = this.reservationsFor(seat.seatCode);
+    if (this.isReservationUsers(reservations)) {
+      if (reservations.length > 0) {
+        let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
+        if (debug == '') {
+          // console.log(seat.seatCode + ' no overlapping reservations');
+        } else {
+          printedOutCorrect = true;
+          // console.log(debug);
         }
       }
-      
-      var queries:string[] = this.popupQueries(seat);
-      var icon = this.iconFor(seat.seatCode, printedOutCorrect);
-      var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
-      marker.bindPopup(this.popupFor(seat));
-      marker.on("popupopen", () => {
-        for (var i = 0; i < queries.length; i += 1) {
-          let query = queries[i];
-          // console.log(query);
-          // console.log(this.elementRef.nativeElement);
-          this.elementRef.nativeElement
-          .querySelector(query)
-          .addEventListener("click", e => {
-            if (reserved) {
-              // console.log(e);
-              this.remove(seat.seatCode, e);
-            } else {
-              // console.log(e);
-              this.reserve(seat.seatCode);
-            }
-          });
+    }
+    
+    var queries:string[] = this.popupQueries(seat);
+    var icon = this.iconFor(seat.seatCode, printedOutCorrect);
+    var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
+    marker.bindPopup(this.popupFor(seat));
+    marker.on("popupopen", () => {
+      for (var i = 0; i < queries.length; i += 1) {
+        let query = queries[i];
+        // console.log(query);
+        // console.log(this.elementRef.nativeElement);
+        this.elementRef.nativeElement
+        .querySelector(query)
+        .addEventListener("click", e => {
+          if (reserved) {
+            // console.log(e);
+            this.remove(seat.seatCode, e);
+          } else {
+            // console.log(e);
+            this.reserve(seat.seatCode);
+          }
+        });
+      }
+    });
+
+    marker.on("click", () => {
+      this.selected(seat.seatCode);
+    });
+
+    // marker.bindTooltip(seat.name, {permanent: true, direction: "center"}).openTooltip();
+    
+    // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
+    this.map.on('zoomend', () => {
+      marker.setIcon(this.iconFor(seat.seatCode, false));
+      // this.updateTooltipFor(marker, printedOutCorrect);
+    });
+
+    marker.setIconAngle(seat.angle);
+
+    // this.updateTooltipFor(marker, printedOutCorrect);
+    
+    this.markers.push(marker);
+  }
+
+  addNameFor(seat) {
+    let iconHeight = this.iconHeightFor(seat.seatCode);
+
+    var x = seat.x;
+    var y = seat.y;
+
+    var modifiedX = this.modifyXPositionForBounds(x);
+    var modifiedY = this.modifyYPositionForBounds(y);
+
+    var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY + iconHeight);
+
+    var markerLatLong = L.latLng(newPosition);
+
+    var marker = new L.Marker(markerLatLong, {
+      icon: new L.DivIcon({
+          className: 'my-div-icon',
+          html: '<p class="my-div-span">' + seat.name + '</p>'
+      })
+    }).addTo(this.map);
+
+    let printedOutCorrect = false;
+    let reservations = this.reservationsFor(seat.seatCode);
+    if (this.isReservationUsers(reservations)) {
+      if (reservations.length > 0) {
+        let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
+        if (debug == '') {
+          // console.log(seat.seatCode + ' no overlapping reservations');
+        } else {
+          printedOutCorrect = true;
+          // console.log(debug);
         }
-      });
+      }
+    }
 
-      marker.on("click", () => {
-        this.selected(seat.seatCode);
-      });
-      
-      // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
-      this.map.on('zoomend', () => {
-        marker.setIcon(this.iconFor(seat.seatCode, false));
-      });
+    this.updatePositionFor(seat.seatCode, marker, printedOutCorrect);
+    this.map.on('zoomend', () => {
+      // marker.setIcon(this.iconFor(seat.seatCode, false));
+      // this.updateTooltipFor(marker, printedOutCorrect);
+      this.updatePositionFor(seat.seatCode, marker, printedOutCorrect);
+    });
 
-      marker.setIconAngle(seat.angle);
+    this.nameMarkers.push(marker);
+  }
 
-      this.markers.push(marker);
+  updatePositionFor(seatCode, marker, debug) {
+    // marker._latlng
+    console.log(marker);
   }
 
   selected(seatCode) {
@@ -278,6 +379,41 @@ export class MapComponent implements AfterViewInit {
     return seat.reservations;
   }
 
+  updateTooltipFor(marker, debug) {
+    var currentZoom = this.map.getZoom();
+    var percentageOfMap = currentZoom;
+    
+    if (currentZoom < 0) {
+      percentageOfMap = currentZoom + 1;
+    } else {
+      percentageOfMap += 1;
+    }
+
+    var newWidth = percentageOfMap * this.seatIconWidth;
+    var halfWidth = newWidth/ 2;
+
+    var newHeight = percentageOfMap * this.seatIconHeight;
+    var halfHeight = newHeight/ 2;
+
+    let newPosition = [marker._latlng.lat + halfHeight, marker.getTooltip()._latlng.lng];
+    if (debug) {
+      // console.log("newHeight " + newHeight);
+      // console.log(marker.getTooltip()._latlng);
+
+      
+      marker.getTooltip()._latlng = L.latLng(newPosition);
+
+      console.log(marker.getTooltip()._latlng.lat);
+
+      // console.log(marker.getTooltip()._latlng);
+
+      // marker.getTooltip()._contentNode.offsetHeight = 10;
+
+      // console.log(marker.getTooltip());
+      // console.log("offset " + marker.getTooltip().pane);
+    }
+  }
+
   iconFor(seatCode, debug):L.icon {
     var currentZoom = this.map.getZoom();
     var percentageOfMap = currentZoom;
@@ -298,20 +434,36 @@ export class MapComponent implements AfterViewInit {
     let reservedIcon = this.isReservationUsers(reservations) ? '../../assets/userReservedSeat.png' : '../../assets/reservedSeat.png';
     let iconURL = reserved ? reservedIcon : '../../assets/reservableSeat.png'; 
 
-    if (debug) {
-      console.log(seatCode + ' is reserved: ' + reserved + ' using icon ' + iconURL);
-    }
+    // if (debug) {
+    //   console.log(seatCode + ' is reserved: ' + reserved + ' using icon ' + iconURL);
+    // }
     return L.icon({
       iconUrl: iconURL,
       iconSize:     [newWidth, newHeight], // size of the icon
       iconAnchor:   [halfWidth, halfHeight], // point of the icon which will correspond to marker's location
-      popupAnchor:  [0, 0] // point from which the popup should open relative to the iconAnchor
+      popupAnchor:  [0, 0], // point from which the popup should open relative to the iconAnchor
+      tooltipAchor: [0, 0]
     });
+  }
+
+  iconHeightFor(seatCode) {
+    var currentZoom = this.map.getZoom();
+    var percentageOfMap = currentZoom;
+    
+    if (currentZoom < 0) {
+      percentageOfMap = currentZoom + 1;
+    } else {
+      percentageOfMap += 1;
+    }
+
+    var newWidth = percentageOfMap * this.seatIconWidth;
+    var newHeight = percentageOfMap * this.seatIconHeight;
+    return newHeight;
   }
 
   isReservationUsers(reservations):boolean {
     for (var i = 0; i < reservations.length; i += 1) {
-      if (reservations[i].emailAddress == this.emailAddress) {
+      if (reservations[i].emailAddress.toUpperCase() == this.emailAddress.toUpperCase()) {
         return true;
       }
     }
@@ -325,7 +477,7 @@ export class MapComponent implements AfterViewInit {
   seatFor(seatCode):Seat {
     for (var i = 0; i < this.seats.length; i += 1) {
       var seat = this.seats[i];
-      if (seat.seatName == seatCode) {
+      if (seat.seatName.toUpperCase() == seatCode.toUpperCase()) {
         return seat;
       }
     }
@@ -400,7 +552,7 @@ export class MapComponent implements AfterViewInit {
 
     this.markers = [];
     this.filterDate = new Date();
-    this.emailAddress = "muath.ali@duke-energy.com";
+    this.emailAddress = "davecdempseydev@gmail.com";
     this.mapDate = new Date();
     this.getSeats();
   }
@@ -469,7 +621,7 @@ export class MapComponent implements AfterViewInit {
     var seatReservation = new Seat();
     seatReservation.FloorCode = seat.FloorCode;
     seatReservation.buildingCode = seat.buildingCode;
-    seatReservation.seatCode = seat.seatCode;
+    seatReservation.seatCode = seat.seatCode.toUpperCase();
     seatReservation.reservations = [];
 
     var reservation = new Reservation();
@@ -563,7 +715,7 @@ export class MapComponent implements AfterViewInit {
     var i;
     for (i = 0; i < this.seats.length; i += 1) {
       var seat = this.seats[i];
-      if (seat.seatName == seatCode) {
+      if (seat.seatName.toUpperCase() == seatCode.toUpperCase()) {
         return seat;
       }
     }
