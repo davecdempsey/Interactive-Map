@@ -15,6 +15,9 @@ import { AfterViewInit, Component, ElementRef } from '@angular/core';
 import * as L from 'leaflet';
 import json from '../../assets/InteractiveMapDataSourse.json';
 import './Marker.Rotate.js';
+import heatmap from 'heatmap.js';
+import HeatmapOverlay from "../../../node_modules/heatmap.js/plugins/leaflet-heatmap";
+import '../../../node_modules/heatmap.js/plugins/leaflet-heatmap/leaflet-heatmap.js'
 import { ApiService } from '../api.service';
 import { Seat } from '../seat'
 import { Reservation } from "../reservation";
@@ -53,6 +56,8 @@ export class MapComponent implements AfterViewInit {
     this.markers = [];
     
     this.initMap();
+
+    this.initHeatMap();
   }
 
   updateSeats(): void {
@@ -71,8 +76,8 @@ export class MapComponent implements AfterViewInit {
       }
     }
 
-    json.seats.forEach(seat => this.addSeat(seat));
-    json.seats.forEach(seat => this.addNameFor(seat));
+    // json.seats.forEach(seat => this.addSeat(seat));
+    // json.seats.forEach(seat => this.addNameFor(seat));
   }
 
   removeAllMarkers():void {
@@ -281,7 +286,7 @@ export class MapComponent implements AfterViewInit {
 
   updatePositionFor(seatCode, marker, debug) {
     // marker._latlng
-    console.log(marker);
+    // console.log(marker);
   }
 
   selected(seatCode) {
@@ -568,6 +573,9 @@ export class MapComponent implements AfterViewInit {
 
   reloadFunction() {
     this.getSeats();
+
+    var pane = this.map.getPane('heatPane');
+    console.log(pane);
   } 
 
   allDayTimeBlock():TimeBlock {
@@ -721,6 +729,69 @@ export class MapComponent implements AfterViewInit {
     }
     return null;
   }
+
+  // HEAT MAP
+  initHeatMap() {
+    var cfg = {
+      // radius should be small ONLY if scaleRadius is true (or small radius is intended)
+      // if scaleRadius is false it will be the constant radius used in pixels
+      "radius": 100,
+      "maxOpacity": .8,
+      // scales the radius based on map zoom
+      "scaleRadius": true,
+      // if set to false the heatmap uses the global maximum for colorization
+      // if activated: uses the data maximum within the current map boundaries
+      //   (there will always be a red spot with useLocalExtremas true)
+      "useLocalExtrema": true,
+      // which field name in your data represents the latitude - default "lat"
+      latField: 'lat',
+      // which field name in your data represents the longitude - default "lng"
+      lngField: 'lng',
+      // which field name in your data represents the data value - default "value"
+      valueField: 'count'
+    };
+
+    var heatmapLayer = new HeatmapOverlay(cfg);
+
+    let maxCount = 8;
+    var heatmapData = [];
+    for (var i = 0; i < json.seats.length; i += 1) {
+      var latlng = this.positionFor(json.seats[i]);
+      let count = this.randomCount(maxCount);
+      heatmapData.push({lat: latlng.lat, lng: latlng.lng, count: count})
+    }
+
+    console.log(heatmapData);
+    var testData = {
+      max: maxCount,
+      data: heatmapData
+    };
+
+    heatmapLayer.setData(testData);
+    heatmapLayer.zIndex = 450;
+    
+    this.map.createPane('heatPane');
+    this.map.getPane('heatPane').zIndex = 450;
+    heatmapLayer['overlayPane'] = 'heatPane';
+    this.map.addLayer(heatmapLayer);
+  }
+
+  randomCount(max) {
+    return Math.floor(Math.random() * Math.floor(max));
+  }
+
+  positionFor(seat) {
+    var x = seat.x;
+    var y = seat.y;
+
+    var modifiedX = this.modifyXPositionForBounds(x);
+    var modifiedY = this.modifyYPositionForBounds(y);
+
+    var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
+
+    return L.latLng(newPosition);
+  }
+  
 }
 
 export class TimeBlock {
