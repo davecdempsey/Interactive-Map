@@ -13,7 +13,7 @@
 import { DatePipe } from '@angular/common';
 import { AfterViewInit, Component, ElementRef } from '@angular/core';
 import * as L from 'leaflet';
-import json from '../../assets/InteractiveMapDataSourse.json';
+import json from '../../assets/DEC21.json';
 import './Marker.Rotate.js';
 import { ApiService } from '../api.service';
 import { Seat } from '../seat'
@@ -43,6 +43,9 @@ export class MapComponent implements AfterViewInit {
   // Seat Label
   seatIconWidth;
   seatIconHeight;
+
+  // Seat Name Prefix
+  seatNamePrefix
   
   constructor(private apiService: ApiService, private elementRef: ElementRef, private datepipe: DatePipe) {}
 
@@ -53,6 +56,10 @@ export class MapComponent implements AfterViewInit {
     this.markers = [];
     
     this.initMap();
+  }
+
+  seatName(seat) {
+    return this.seatNamePrefix + seat.name;
   }
 
   updateSeats(): void {
@@ -90,16 +97,16 @@ export class MapComponent implements AfterViewInit {
   }
 
   private initMap(): void {
-    let reservedStatus = "reserved";
-    let reservableStatus = "reservable";
-
     // SVG Asset Size
     let svgWidth = json.svgWidth;
     let svgHeight = json.svgHeight;
 
-    // // Seat Label
+    // Seat Label
     this.seatIconWidth = json.iconWidth;
     this.seatIconHeight = json.iconHeight;
+
+    // Seat Name Prefix
+    this.seatNamePrefix = json.seatNamePrefix;
 
     var svgLocation = json.svg;
 
@@ -166,6 +173,8 @@ export class MapComponent implements AfterViewInit {
   }
 
   addSeat(seat):void {
+    let seatName = this.seatName(seat);
+
     var x = seat.x;
     var y = seat.y;
 
@@ -177,15 +186,15 @@ export class MapComponent implements AfterViewInit {
 
     var markerLatLong = L.latLng(newPosition);
     
-    let reserved = this.reservedStatusFor(seat.seatCode);
+    let reserved = this.reservedStatusFor(seatName);
 
     let printedOutCorrect = false;
-    let reservations = this.reservationsFor(seat.seatCode);
+    let reservations = this.reservationsFor(seatName);
     if (this.isReservationUsers(reservations)) {
       if (reservations.length > 0) {
-        let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
+        let debug = this.reservationsInFilterForDebugFor(seatName);
         if (debug == '') {
-          // console.log(seat.seatCode + ' no overlapping reservations');
+          // console.log(seatName + ' no overlapping reservations');
         } else {
           printedOutCorrect = true;
           // console.log(debug);
@@ -194,7 +203,7 @@ export class MapComponent implements AfterViewInit {
     }
     
     var queries:string[] = this.popupQueries(seat);
-    var icon = this.iconFor(seat.seatCode, printedOutCorrect);
+    var icon = this.iconFor(seatName, printedOutCorrect);
     var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
     marker.bindPopup(this.popupFor(seat));
     marker.on("popupopen", () => {
@@ -207,24 +216,24 @@ export class MapComponent implements AfterViewInit {
         .addEventListener("click", e => {
           if (reserved) {
             // console.log(e);
-            this.remove(seat.seatCode, e);
+            this.remove(seatName, e);
           } else {
             // console.log(e);
-            this.reserve(seat.seatCode);
+            this.reserve(seatName);
           }
         });
       }
     });
 
     marker.on("click", () => {
-      this.selected(seat.seatCode);
+      this.selected(seatName);
     });
 
     // marker.bindTooltip(seat.name, {permanent: true, direction: "center"}).openTooltip();
     
     // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
     this.map.on('zoomend', () => {
-      marker.setIcon(this.iconFor(seat.seatCode, false));
+      marker.setIcon(this.iconFor(seatName, false));
       // this.updateTooltipFor(marker, printedOutCorrect);
     });
 
@@ -236,7 +245,9 @@ export class MapComponent implements AfterViewInit {
   }
 
   addNameFor(seat) {
-    let iconHeight = this.iconHeightFor(seat.seatCode);
+    let seatName = this.seatName(seat);
+
+    let iconHeight = this.iconHeightFor(seatName);
 
     var x = seat.x;
     var y = seat.y;
@@ -256,12 +267,12 @@ export class MapComponent implements AfterViewInit {
     }).addTo(this.map);
 
     let printedOutCorrect = false;
-    let reservations = this.reservationsFor(seat.seatCode);
+    let reservations = this.reservationsFor(seatName);
     if (this.isReservationUsers(reservations)) {
       if (reservations.length > 0) {
-        let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
+        let debug = this.reservationsInFilterForDebugFor(seatName);
         if (debug == '') {
-          // console.log(seat.seatCode + ' no overlapping reservations');
+          // console.log(seatName + ' no overlapping reservations');
         } else {
           printedOutCorrect = true;
           // console.log(debug);
@@ -269,32 +280,34 @@ export class MapComponent implements AfterViewInit {
       }
     }
 
-    this.updatePositionFor(seat.seatCode, marker, printedOutCorrect);
+    this.updatePositionFor(seatName, marker, printedOutCorrect);
     this.map.on('zoomend', () => {
-      // marker.setIcon(this.iconFor(seat.seatCode, false));
+      // marker.setIcon(this.iconFor(seatName, false));
       // this.updateTooltipFor(marker, printedOutCorrect);
-      this.updatePositionFor(seat.seatCode, marker, printedOutCorrect);
+      this.updatePositionFor(seatName, marker, printedOutCorrect);
     });
 
     this.nameMarkers.push(marker);
   }
 
-  updatePositionFor(seatCode, marker, debug) {
+  updatePositionFor(seatName, marker, debug) {
     // marker._latlng
-    console.log(marker);
+    // console.log(marker);
   }
 
-  selected(seatCode) {
-    console.log("click " + seatCode);
+  selected(seatName) {
+    console.log("click " + seatName);
   }
 
   popupQueries(seat):string[] {
+    let seatName = this.seatName(seat);
+
     var queries:string[] = [];
-    let reserved = this.reservedStatusFor(seat.seatCode);
+    let reserved = this.reservedStatusFor(seatName);
     if (reserved == false) {
       queries.push('.reserve');
     } else {
-      let reservations = this.reservationsInFilterFor(seat.seatCode);
+      let reservations = this.reservationsInFilterFor(seatName);
       for (var i = 0; i < reservations.length; i += 1) {
         queries.push('.remove'+i);
       }
@@ -304,9 +317,10 @@ export class MapComponent implements AfterViewInit {
   }
 
   popupFor(seat):string {
-    
-    let reservations = this.reservationsInFilterFor(seat.seatCode);
-    let reserved = this.reservedStatusFor(seat.seatCode);
+    let seatName = this.seatName(seat);
+
+    let reservations = this.reservationsInFilterFor(seatName);
+    let reserved = this.reservedStatusFor(seatName);
 
     if (reserved == false) {
       let reserveButton = "<button class='reserve'>Reserve</button>";
@@ -349,19 +363,19 @@ export class MapComponent implements AfterViewInit {
     return popup;
   }
 
-  reservationsInFilterForDebugFor(seatCode):string {
+  reservationsInFilterForDebugFor(seatName):string {
     var debugString:string = '';
-    var allReservations = this.reservationsFor(seatCode);
+    var allReservations = this.reservationsFor(seatName);
     for (var i = 0; i < allReservations.length; i += 1) {
       var reservation = allReservations[i];
-      debugString += 'seatCode:' + seatCode + ' has reservations overlap: ' + this.doesReservationOverlap(reservation) + '\n' + this.printOutReservation(reservation)+ '\n';
+      debugString += 'seatName:' + seatName + ' has reservations overlap: ' + this.doesReservationOverlap(reservation) + '\n' + this.printOutReservation(reservation)+ '\n';
     }
     return debugString;
   }
 
-  reservationsInFilterFor(seatCode):Reservation[] {
+  reservationsInFilterFor(seatName):Reservation[] {
     var reservations:Reservation[] = [];
-    var allReservations = this.reservationsFor(seatCode);
+    var allReservations = this.reservationsFor(seatName);
     for (var i = 0; i < allReservations.length; i += 1) {
       var reservation = allReservations[i];
       if (this.doesReservationOverlap(reservation)) {
@@ -371,8 +385,8 @@ export class MapComponent implements AfterViewInit {
     return reservations;
   }
 
-  reservationsFor(seatCode):Reservation[] {
-    var seat = this.seatFor(seatCode);
+  reservationsFor(seatName):Reservation[] {
+    var seat = this.seatFor(seatName);
     if (seat == null) {
       return [];
     }
@@ -414,7 +428,7 @@ export class MapComponent implements AfterViewInit {
     }
   }
 
-  iconFor(seatCode, debug):L.icon {
+  iconFor(seatName, debug):L.icon {
     var currentZoom = this.map.getZoom();
     var percentageOfMap = currentZoom;
     
@@ -429,13 +443,13 @@ export class MapComponent implements AfterViewInit {
 
     var newHeight = percentageOfMap * this.seatIconHeight;
     var halfHeight = newHeight/ 2;
-    let reservations = this.reservationsInFilterFor(seatCode);
+    let reservations = this.reservationsInFilterFor(seatName);
     let reserved = reservations.length > 0;  
     let reservedIcon = this.isReservationUsers(reservations) ? '../../assets/userReservedSeat.png' : '../../assets/reservedSeat.png';
     let iconURL = reserved ? reservedIcon : '../../assets/reservableSeat.png'; 
 
     // if (debug) {
-    //   console.log(seatCode + ' is reserved: ' + reserved + ' using icon ' + iconURL);
+    //   console.log(seatName + ' is reserved: ' + reserved + ' using icon ' + iconURL);
     // }
     return L.icon({
       iconUrl: iconURL,
@@ -446,7 +460,7 @@ export class MapComponent implements AfterViewInit {
     });
   }
 
-  iconHeightFor(seatCode) {
+  iconHeightFor(seatName) {
     var currentZoom = this.map.getZoom();
     var percentageOfMap = currentZoom;
     
@@ -470,14 +484,14 @@ export class MapComponent implements AfterViewInit {
     return false;
   }
 
-  reservedStatusFor(seatCode):boolean {
-    return this.reservationsInFilterFor(seatCode).length > 0;
+  reservedStatusFor(seatName):boolean {
+    return this.reservationsInFilterFor(seatName).length > 0;
   }
 
-  seatFor(seatCode):Seat {
+  seatFor(seatName):Seat {
     for (var i = 0; i < this.seats.length; i += 1) {
       var seat = this.seats[i];
-      if (seat.seatName.toUpperCase() == seatCode.toUpperCase()) {
+      if (seat.seatName.toUpperCase() == seatName.toUpperCase()) {
         return seat;
       }
     }
@@ -612,8 +626,8 @@ export class MapComponent implements AfterViewInit {
     this.updateSeats();
   }
 
-  reserve(seatCode) {
-    let seat = this.seatObjectFor(seatCode)
+  reserve(seatName) {
+    let seat = this.seatObjectFor(seatName)
     if (seat == null) {
       return;
     }
@@ -635,7 +649,7 @@ export class MapComponent implements AfterViewInit {
     var seatReservations:Seat[] = [];
     seatReservations.push(seatReservation);
 
-    console.log(seatReservations);
+    // console.log(seatReservations);
     this.apiService.addReservation(seatReservations)
     .subscribe(
       seat => console.log(seat),
@@ -644,10 +658,10 @@ export class MapComponent implements AfterViewInit {
     );
   }
 
-  remove(seatCode, e) {
-    // console.log('remove: \n' + seatCode);
+  remove(seatName, e) {
+    // console.log('remove: \n' + seatName);
     // console.log(e.srcElement.id);
-    let seat = this.seatObjectFor(seatCode)
+    let seat = this.seatObjectFor(seatName)
     if (seat == null) {
       return;
     }
@@ -711,11 +725,11 @@ export class MapComponent implements AfterViewInit {
     return this.allDayTimeBlock();
   }
 
-  seatObjectFor(seatCode):Seat {
+  seatObjectFor(seatName):Seat {
     var i;
     for (i = 0; i < this.seats.length; i += 1) {
       var seat = this.seats[i];
-      if (seat.seatName.toUpperCase() == seatCode.toUpperCase()) {
+      if (seat.seatName.toUpperCase() == seatName.toUpperCase()) {
         return seat;
       }
     }
