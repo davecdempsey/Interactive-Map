@@ -24,3 +24,24 @@
 	border: 1px solid #fff0;
   box-shadow: 0 1px 3px rgba(0,0,0,0);
 }
+
+::ng-deep .leaflet-center {
+  left: 50%;
+  transform: translate(-50%, 0%);
+}
+
+::ng-deep .leaflet-middle {
+  top: 50%;
+  position: absolute;
+  z-index: 1000;
+  pointer-events:none;
+  transform: translate(0%, -50%);
+}
+
+::ng-deep .leaflet-center.leaflet-middle {
+  transform: translate(-50%, -50%);
+}
+
+::ng-deep .leaflet-bar a {
+  float: right;
+}

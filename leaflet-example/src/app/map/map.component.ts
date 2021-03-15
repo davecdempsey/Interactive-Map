@@ -13,7 +13,8 @@
 import { DatePipe } from '@angular/common';
 import { AfterViewInit, Component, ElementRef } from '@angular/core';
 import * as L from 'leaflet';
-import json from '../../assets/DEC21.json';
+// import json from '../../assets/DEC21.json';
+import json from '../../assets/ST18.json';
 import './Marker.Rotate.js';
 import { ApiService } from '../api.service';
 import { Seat } from '../seat'
@@ -45,8 +46,8 @@ export class MapComponent implements AfterViewInit {
   seatIconHeight;
 
   // Seat Name Prefix
-  seatNamePrefix
-  
+  seatNamePrefix;
+
   constructor(private apiService: ApiService, private elementRef: ElementRef, private datepipe: DatePipe) {}
 
   ngAfterViewInit(): void {
@@ -59,7 +60,7 @@ export class MapComponent implements AfterViewInit {
   }
 
   seatName(seat) {
-    return this.seatNamePrefix + seat.name;
+    return this.seatNamePrefix + seat.code;
   }
 
   updateSeats(): void {
@@ -114,6 +115,7 @@ export class MapComponent implements AfterViewInit {
     this.map = L.map('map', {
         crs: L.CRS.Simple,
         minZoom: -0.4,
+        // maxZoom: 1,
         maxZoom: 2,
         zoomSnap: 0.01,
         maxBounds: bounds,
@@ -183,7 +185,6 @@ export class MapComponent implements AfterViewInit {
 
     var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
 
-
     var markerLatLong = L.latLng(newPosition);
     
     let reserved = this.reservedStatusFor(seatName);
@@ -247,7 +248,7 @@ export class MapComponent implements AfterViewInit {
   addNameFor(seat) {
     let seatName = this.seatName(seat);
 
-    let iconHeight = this.iconHeightFor(seatName);
+    let iconHeight = this.iconHeightFor(seat.code);
 
     var x = seat.x;
     var y = seat.y;
@@ -262,7 +263,7 @@ export class MapComponent implements AfterViewInit {
     var marker = new L.Marker(markerLatLong, {
       icon: new L.DivIcon({
           className: 'my-div-icon',
-          html: '<p class="my-div-span">' + seat.name + '</p>'
+          html: '<p class="my-div-span">' + seat.code + '</p>'
       })
     }).addTo(this.map);
 
@@ -326,9 +327,7 @@ export class MapComponent implements AfterViewInit {
       let reserveButton = "<button class='reserve'>Reserve</button>";
       var timeFrame = this.startFilterTime + ' - ' + this.endFilterTime;
       return '<div class="card">' +
-                '<h1 style = "margin:0;">' + seat.name + '</h1>' +
-                '<p class="title" style = "margin:0;"> Floor: ' + seat.floor + '</p>' +
-                '<p style = "margin:0;">' + seat.building + '</p>' +
+                '<h1 style = "margin:0;">' + seat.code + '</h1>' +
                 '<p style = "margin:0;">' + reserveButton + '  ' + timeFrame + '</p>' +
               '</div>';
     }
@@ -462,6 +461,7 @@ export class MapComponent implements AfterViewInit {
 
   iconHeightFor(seatName) {
     var currentZoom = this.map.getZoom();
+    
     var percentageOfMap = currentZoom;
     
     if (currentZoom < 0) {
