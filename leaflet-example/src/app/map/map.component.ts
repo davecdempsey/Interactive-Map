@@ -13,8 +13,10 @@
 import { DatePipe } from '@angular/common';
 import { AfterViewInit, Component, ElementRef } from '@angular/core';
 import * as L from 'leaflet';
+// import json from '../../assets/ST17.json';
 // import json from '../../assets/DEC21.json';
-import json from '../../assets/ST18.json';
+// import json from '../../assets/ST18.json';
+import json from '../../assets/NP4.json';
 import './Marker.Rotate.js';
 import { ApiService } from '../api.service';
 import { Seat } from '../seat'
