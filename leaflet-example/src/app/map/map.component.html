@@ -1,9 +1,10 @@
+<button (click)="resizeMap()" id="resizeMapbutton" title="Resize">Resize</button>
 <button (click)="reloadFunction()" id="reloadButton" title="Reload">Reload</button>
 <button (click)="allDay()" id="allDayButton" title="AllDay">AllDay</button>
 <button (click)="halfDayMorning()" id="halfDayMorningButton" title="HalfDayMorning">HalfDayMorning</button>
 <button (click)="halfDayAfternoon()" id="halfDayAfternoonButton" title="HalfDayAfternoon">HalfDayAfternoon</button>
 <div class="map-container">
-    <div class="map-frame">
-      <div id="map"></div>
-    </div>
+  <div id="map-frame-container" class="map-frame">
+    <div id="map"></div>
   </div>
+</div>

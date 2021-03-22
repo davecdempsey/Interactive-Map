@@ -13,10 +13,10 @@
 import { DatePipe } from '@angular/common';
 import { AfterViewInit, Component, ElementRef } from '@angular/core';
 import * as L from 'leaflet';
-// import json from '../../assets/ST17.json';
+import json from '../../assets/ST17.json';
 // import json from '../../assets/DEC21.json';
 // import json from '../../assets/ST18.json';
-import json from '../../assets/NP4.json';
+// import json from '../../assets/NP4.json';
 import './Marker.Rotate.js';
 import { ApiService } from '../api.service';
 import { Seat } from '../seat'
@@ -49,6 +49,10 @@ export class MapComponent implements AfterViewInit {
 
   // Seat Name Prefix
   seatNamePrefix;
+
+  percentSize;
+
+  overlayLayer;
 
   constructor(private apiService: ApiService, private elementRef: ElementRef, private datepipe: DatePipe) {}
 
@@ -100,9 +104,11 @@ export class MapComponent implements AfterViewInit {
   }
 
   private initMap(): void {
+    this.caculatePercentSize();
+
     // SVG Asset Size
-    let svgWidth = json.svgWidth;
-    let svgHeight = json.svgHeight;
+    let svgWidth = this.modifyPixel(json.svgWidth);
+    let svgHeight = this.modifyPixel(json.svgHeight);
 
     // Seat Label
     this.seatIconWidth = json.iconWidth;
@@ -111,12 +117,12 @@ export class MapComponent implements AfterViewInit {
     // Seat Name Prefix
     this.seatNamePrefix = json.seatNamePrefix;
 
-    var svgLocation = json.svg;
+    var svgLocation = json.svgPath + json.svg;
 
     var bounds = [[0,0], [-1 * svgHeight, svgWidth]];
     this.map = L.map('map', {
         crs: L.CRS.Simple,
-        minZoom: -0.4,
+        minZoom: 0.0,
         // maxZoom: 1,
         maxZoom: 2,
         zoomSnap: 0.01,
@@ -126,8 +132,8 @@ export class MapComponent implements AfterViewInit {
     });
 
 
-    L.imageOverlay(svgLocation, bounds).addTo(this.map);
-    this.map.setView([svgHeight/2, svgWidth/2], -0.4);
+    this.overlayLayer = L.imageOverlay(svgLocation, bounds).addTo(this.map);
+    this.map.setView([svgHeight/2, svgWidth/2], 0.0);
 
     // changing zoom controls
     // https://stackoverflow.com/questions/33614912/how-to-locate-leaflet-zoom-control-in-a-desired-position
@@ -160,6 +166,51 @@ export class MapComponent implements AfterViewInit {
     this.map.zoomControl.setPosition('bottomcenter');
   }
 
+  resizeMap() {
+    this.caculatePercentSize();
+
+    if (this.overlayLayer == null) {
+      return;
+    }
+
+    // SVG Asset Size
+    let svgWidth = this.modifyPixel(json.svgWidth);
+    let svgHeight = this.modifyPixel(json.svgHeight);
+
+    var bounds = [[0,0], [-1 * svgHeight, svgWidth]];
+
+    this.overlayLayer.setBounds(bounds);
+    this.map.setMaxBounds (bounds);
+    this.map.setView([svgHeight/2, svgWidth/2], 0.0);
+
+    this.updateSeats();
+  }
+
+  private caculatePercentSize() {
+    var width = document.getElementById('map-frame-container').offsetWidth;
+    var height = document.getElementById('map-frame-container').offsetHeight;
+    console.log("width " + width + " height " + height);
+
+    // SVG Asset Size
+    let svgWidth = json.svgWidth;
+    let svgHeight = json.svgHeight;
+
+    let heightPercentage = height/svgHeight;
+    let widthPercentage = width/svgWidth;
+
+    if (heightPercentage > widthPercentage) {
+      this.percentSize = widthPercentage;
+    } else {
+      this.percentSize = heightPercentage;
+    }
+
+    console.log("this.percentSize " + this.percentSize);
+  }
+
+  modifyPixel(pixel) {
+    return pixel * this.percentSize;
+  }
+
   modifyXPositionForBounds(x) {
     var offsetX = this.seatIconWidth / 2
     return offsetX + x;
@@ -182,8 +233,8 @@ export class MapComponent implements AfterViewInit {
     var x = seat.x;
     var y = seat.y;
 
-    var modifiedX = this.modifyXPositionForBounds(x);
-    var modifiedY = this.modifyYPositionForBounds(y);
+    var modifiedX = this.modifyPixel(this.modifyXPositionForBounds(x));
+    var modifiedY = this.modifyPixel(this.modifyYPositionForBounds(y));
 
     var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
 
@@ -255,8 +306,8 @@ export class MapComponent implements AfterViewInit {
     var x = seat.x;
     var y = seat.y;
 
-    var modifiedX = this.modifyXPositionForBounds(x);
-    var modifiedY = this.modifyYPositionForBounds(y);
+    var modifiedX = this.modifyPixel(this.modifyXPositionForBounds(x));
+    var modifiedY = this.modifyPixel(this.modifyYPositionForBounds(y));
 
     var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY + iconHeight);
 
@@ -405,10 +456,10 @@ export class MapComponent implements AfterViewInit {
     }
 
     var newWidth = percentageOfMap * this.seatIconWidth;
-    var halfWidth = newWidth/ 2;
+    var halfWidth = this.modifyPixel(newWidth/ 2);
 
     var newHeight = percentageOfMap * this.seatIconHeight;
-    var halfHeight = newHeight/ 2;
+    var halfHeight = this.modifyPixel(newHeight/ 2);
 
     let newPosition = [marker._latlng.lat + halfHeight, marker.getTooltip()._latlng.lng];
     if (debug) {
@@ -439,10 +490,10 @@ export class MapComponent implements AfterViewInit {
       percentageOfMap += 1;
     }
 
-    var newWidth = percentageOfMap * this.seatIconWidth;
+    var newWidth = this.modifyPixel(percentageOfMap * this.seatIconWidth);
     var halfWidth = newWidth/ 2;
 
-    var newHeight = percentageOfMap * this.seatIconHeight;
+    var newHeight = this.modifyPixel(percentageOfMap * this.seatIconHeight);
     var halfHeight = newHeight/ 2;
     let reservations = this.reservationsInFilterFor(seatName);
     let reserved = reservations.length > 0;  
@@ -474,7 +525,7 @@ export class MapComponent implements AfterViewInit {
 
     var newWidth = percentageOfMap * this.seatIconWidth;
     var newHeight = percentageOfMap * this.seatIconHeight;
-    return newHeight;
+    return this.modifyPixel(newHeight);
   }
 
   isReservationUsers(reservations):boolean {
