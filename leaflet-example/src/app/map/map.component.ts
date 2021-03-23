@@ -207,6 +207,29 @@ export class MapComponent implements AfterViewInit {
     console.log("this.percentSize " + this.percentSize);
   }
 
+  printOutMarkers() {
+    let featuresInView = this.getMarkersInView();
+    for (var i = 0; i < featuresInView.length; i += 1) {
+      console.log(featuresInView[i]);
+    }
+  }
+
+  // var map is an instance of a Leaflet map
+  // this function assumes you have added markers as GeoJSON to the map
+  // it will return an array of all features currently shown in the
+  // active bounding region.
+
+  getMarkersInView() {
+    var features = [];
+    for(var i = 0; i < this.markers.length; i += 1) {
+      let marker = this.markers[i];
+      if(this.map.getBounds().contains(marker.getLatLng())) {
+        features.push(marker);
+      }
+    }
+    return features;
+  }
+
   modifyPixel(pixel) {
     return pixel * this.percentSize;
   }
