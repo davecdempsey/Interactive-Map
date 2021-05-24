@@ -19,12 +19,17 @@
 /* https://medium.com/javascript-everyday/overriding-css-properties-of-third-party-components-in-angular-6a57f143b9d7 */
 ::ng-deep .leaflet-tooltip-pane   { z-index: 500; }
 
+::ng-deep .leaflet-container {
+  background: #fff;
+}
+
 ::ng-deep .leaflet-tooltip {
 	background-color: #fff0;
 	border: 1px solid #fff0;
   box-shadow: 0 1px 3px rgba(0,0,0,0);
 }
 
+/* https://stackoverflow.com/questions/23762176/leaflet-custom-control-position-center */
 ::ng-deep .leaflet-center {
   left: 50%;
   transform: translate(-50%, 0%);
@@ -34,7 +39,7 @@
   top: 50%;
   position: absolute;
   z-index: 1000;
-  pointer-events:none;
+  pointer-events: none;
   transform: translate(0%, -50%);
 }
 
@@ -42,6 +47,7 @@
   transform: translate(-50%, -50%);
 }
 
+/* https://stackoverflow.com/questions/37170761/how-can-i-make-leaflet-controls-stack-horizontally-rather-than-vertically */
 ::ng-deep .leaflet-bar a {
-  float: right;
+  float:right;
 }
