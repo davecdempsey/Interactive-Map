@@ -11,12 +11,16 @@
 // https://stackoverflow.com/questions/13851888/how-can-i-change-the-default-loading-tile-color-in-leafletjs
 
 import { DatePipe } from '@angular/common';
-import { AfterViewInit, Component, ElementRef } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, ViewChild } from '@angular/core';
 import * as L from 'leaflet';
 import json from '../../assets/DEC21.json';
 import { ApiService } from '../api.service';
 import { Seat } from '../seat'
 import { Reservation } from "../reservation";
+import * as SPD from "svg-path-d"; 
+import { Point, Rect } from 'svg-path-d/dist/utils';
+
+import svgPath from 'svgpath';
 
 @Component({
   selector: 'app-map',
@@ -27,6 +31,8 @@ import { Reservation } from "../reservation";
 
 export class MapComponent implements AfterViewInit {
 
+  @ViewChild("mapContainer") mapContainer: ElementRef;
+  
   assetPath = '../../assets/';
 
   filterDate:Date;
@@ -34,158 +40,264 @@ export class MapComponent implements AfterViewInit {
   emailAddress:string;
 
   seats: Seat[];
-  map:L.map;
 
+  map:L.map;
   markers:L.Marker[];
+  images:L.ImageOverlay[];
 
   startFilterTime:string;
   endFilterTime:string;
 
   // Seat Label
-  seatIconWidth;
-  seatIconHeight;
+  seatIconRadius;
+
+  seatLocations;
+
+  percentSize;
+
+  overlayLayer;
+
+  initialZoomLevel;
+  currentWindowWidth: number;
+
+  svgWidth;
+  svgHeight;
+
+  svg;
   
   constructor(private apiService: ApiService, private elementRef: ElementRef, private datepipe: DatePipe) {}
 
   ngAfterViewInit(): void {
+    this.initialZoomLevel = 0.0;
+    this.setWindowSize();
+
     this.initPOC();
 
+    this.seatLocations = {};
     this.markers = [];
-    this.initMap();
-    
+    // this.updatemap();
+
     this.updateSeats();
   }
 
-  updateSeats(): void {
-    console.log('updateSeats');
-    if (this.markers == null) {
-      console.log('this.markers == null');
+  @HostListener('window:resize')
+  onResize() {
+    this.setWindowSize();
+  }
+
+  private setWindowSize() {
+    this.currentWindowWidth = window.innerWidth;
+  }
+
+  modifyPixel(pixel) {
+    return pixel * this.percentSize;
+  }
+
+  resizeMap() {
+    this.caculatePercentSize();
+
+    if (this.overlayLayer == null) {
       return;
     }
+
+    // SVG Asset Size
+    let svgWidth = this.modifyPixel(this.svgWidth);
+    let svgHeight = this.modifyPixel(this.svgHeight);
+
+    var bounds = [[0,0], [-1 * svgHeight, svgWidth]];
+
+    this.overlayLayer.setBounds(bounds);
+    this.map.setMaxBounds (bounds);
+    this.map.setView([svgHeight/2, svgWidth/2], this.initialZoomLevel);
+  }
+
+  private caculatePercentSize() {
+    var width = this.mapContainer.nativeElement.offsetWidth;
+    var height = this.mapContainer.nativeElement.offsetHeight;
+
+    let heightPercentage = height/this.svgHeight;
+    let widthPercentage = width/this.svgWidth;
+
+    if (heightPercentage > widthPercentage) {
+      this.percentSize = widthPercentage;
+    } else {
+      this.percentSize = heightPercentage;
+    }
+  }
+
+  updateSeats(): void {
+    if (this.markers == null) {
+      this.markers = [];
+    }
+
+    if (this.images == null) {
+      this.images = [];
+    }
+
     if (this.markers.length > 0) {
       this.removeAllMarkers();
     }
 
-    // json.seats.forEach(seat => this.addSeat(seat));
-    // json.seats.forEach(seat => this.addSeatAsImage(seat));
-
-    // this.parseSVG();
-  }
-
-  // SVGElement.prototype.getTransformToElement = SVGElement.prototype.getTransformToElement || function(elem) {
-  //   return elem.getScreenCTM().inverse().multiply(this.getScreenCTM());
-  // };  
-
-  parseSVG() {
-
-    var svgLocation = this.assetPath + json.svg;
-
-    getAndModifySVG(svgLocation).then(handleSVG);
-
-    // console.log(svgText);
-
-    // const parser = new DOMParser();
-
-    // const svgDoc = parser.parseFromString(svgText, "image/svg+xml");
-
-    // console.log(svgDoc);
-
-    function getAndModifySVG(url) {
-      return fetch(url)
-                // Get SVG response as text
-                .then(response => response.text())
-                // Parse to a DOM tree using DOMParser
-                .then(str => (new window.DOMParser()).parseFromString(str, "text/xml"))
-                // // Find path with id="myPath" and return the d attribute
-                // .then(data => data.getElementById("seats"))
+    if (this.images.length > 0) {
+      this.removeAllImages();
     }
 
-    function handleSVG(data) {
-      console.log(data);
-      var root = data.rootElement;
-      var seats = data.getElementById("seats");
+    this.parseSVG();
+  }
 
-      for (var i = 0; i < seats.children.length; i += 1) {
-        var path = seats.children[i];
+  getSVGViewBox(data) {
+    this.svgHeight = data.firstElementChild.viewBox.baseVal.height;
+    this.svgWidth = data.firstElementChild.viewBox.baseVal.width;
+  }
 
-        var point = root.createSVGPoint();
-        point.x = 0;  // replace this with the x co-ordinate of the path segment
-        point.y = 0;  // replace this with the y co-ordinate of the path segment
-  
-  
-        // var matrix = path.getTransformToElement(root);
-        var matrix = root.getScreenCTM().inverse().multiply(path.getScreenCTM());
-        var position = point.matrixTransform(matrix);
-  
-        // console.log(path.id + " has x: " + position.x + " y: " + position.y);
+  getIconRadius(data) {
+    let circle = data.getElementById("circle-2");
+    this.seatIconRadius = circle.getAttribute("r") * 2
+  }
 
-        // console.log(path.id + " has x: " + path.getAttributeNS() + " y: " + position.y);
+  handleSVGSeats(seats) {
+    // console.log(seats);
+    for (var i = 0; i < seats.children.length; i += 1) {
+      var seat = seats.children[i];
+      var seatChildren = seat.children;
 
-        if (path.children.lenghth < 1) {
+      var seatRect = null;
+      for (var j = 0; j < seatChildren.length; j += 1) {
+        var seatChild = seatChildren[j];
+
+        if (seatChild.getAttribute("d") == null) {
           continue;
         }
 
-        if (path.id === "_x32_123-01" ) {
-          debugger
+        let path = SPD.fromString(seatChild.getAttribute("d"));
+
+        // console.log(path);
+        let rect = SPD.getBoundingRect(path);
+        // console.log(rect);
+        if (seatRect == null) {
+          seatRect = rect;
+        } else {
+          SPD.utils.addRect(seatRect, rect);
         }
-        // var element = path.children[0];
-
-        // console.log(path.children[0]);
-
-        // var x = element.transform.baseVal[0].matrix.e;
-        // var y = element.transform.baseVal[0].matrix.f;
-
-        // Instead of taking into account transformations on the element,
-        // invert the transformations and apply them to the point.
-        // if (element.transform && element.transform.baseVal) {
-        //   // Get the transformation matrix information.
-        //   var transform = element.transform.baseVal.consolidate();
-        //   if (transform) {
-        //       // Calculate the inverse of the transformation matrix.
-        //       var transformMatrix = transform.matrix;
-        //       var inverseTM = transformMatrix.inverse();
-
-        //       // Calculate the new x and y values as a matrix multiplication of
-        //       // the inverse transformation matrix and the vector (x,y,1).
-        //       //
-        //       //   a c e       x       a*x + c*y + e       newX
-        //       // ( b d f ) * ( y ) = ( b*x + d*y + f ) = ( newY )
-        //       //   0 0 1       1             1              1
-        //       //
-
-        //       // debugger
-        //       var newX, newY;
-        //       newX = inverseTM.a*x + inverseTM.c*y + inverseTM.e;
-        //       newY = inverseTM.b*x + inverseTM.d*y + inverseTM.f;
-        //       x = newX;
-        //       y = newY;
-        //   }
-        // }
-
-        // console.log(path.id + " has x: " + x + " y: " + y);
-
       }
+      // console.log(this.getCenter(seatRect));
+
+      // console.log(seat);
+      if (this.seatLocations == null) {
+        this.seatLocations = {};
+      }
+      if (seatRect != null) {
+        let seatName = seat.getAttribute("data-name");
+        // console.log(seat.id + " has name " + seatName);
+        // console.log(seat.attributes);
+        this.seatLocations[seat.getAttribute("data-name")] = this.getCenter(seatRect);
+      }
+    }
+
+    for(var key in this.seatLocations) {
+      var value = this.seatLocations[key];
+      this.addParsedSeats(key, value);
     }
   }
 
+  getCenter(rect:Rect):SPD.utils.Point {
+    let width = rect.right - rect.left;
+    let x = (width / 2) + rect.left;
 
+    let height = rect.top - rect.bottom;
+    let y = (height / 2) + rect.bottom;
+
+    return {x: x, y: y};
+  }
+
+  parseSVG(forceReload = false) {
+    var svgLocation = this.assetPath + json.svg;
+    this.getAndModifySVG(svgLocation, forceReload)
+  }
+
+  getAndModifySVG(url, forceReload = false) {
+    if (this.svg != null && forceReload == false) {
+      this.getSVGViewBox(this.svg);
+      this.updatemap();
+      this.handleSVGSeats(this.svg.getElementById("seats"));
+      return;
+    }
+    return fetch(url)
+              // Get SVG response as text
+              .then(response => {return response.text()})
+              // Parse to a DOM tree using DOMParser
+              .then(str => (new DOMParser()).parseFromString(str, "text/xml"))
+              // // Find path with id="myPath" and return the d attribute
+              .then(data => {
+                this.svg = data;
+
+                this.getIconRadius(data);
+
+                this.getSVGViewBox(data);
+
+                this.updatemap();
+
+                this.handleSVGSeats(data.getElementById("seats"));
+                // console.log(data);
+              })
+  }
+
+  addParsedSeats(seatName, point) {
+    var x = point.x;
+    var y = point.y;
+
+    var modifiedX = this.modifyPixel(this.modifyXPositionForBounds(x));
+    var modifiedY = this.modifyPixel(this.modifyYPositionForBounds(y));
+
+    var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
+
+    var markerLatLong = L.latLng(newPosition);
+
+    var halfIconWidth = this.modifyPixel(this.seatIconRadius) * 0.5;
+    var halfIconHeight = this.modifyPixel(this.seatIconRadius) * 0.5;
+
+    var bounds = [
+      [markerLatLong.lat - halfIconWidth, markerLatLong.lng - halfIconHeight],
+      [markerLatLong.lat + halfIconWidth, markerLatLong.lng + halfIconHeight]
+    ];
+
+    var image = L.imageOverlay(this.imageFor(seatName), bounds);
+
+    image.addTo(this.map);
+
+    var icon = this.iconFor(seatName, false);
+    var marker = L.marker(markerLatLong, {icon : icon, opacity: 0}).addTo(this.map);
+    // marker.bindTooltip(seatName, {permanent: true, direction: "top"}).openTooltip();
+  }
 
   removeAllMarkers():void {
-    var i;
-    for (i = 0; i < this.markers.length; i += 1) {
+    for (var i = 0; i < this.markers.length; i += 1) {
       this.map.removeLayer(this.markers[i]);
     }
     this.markers = [];
   }
 
-  private initMap(): void {
-    // SVG Asset Size
-    let svgWidth = json.svgWidth;
-    let svgHeight = json.svgHeight;
+  removeAllImages():void {
+    for (var i = 0; i < this.images.length; i += 1) {
+      this.map.removeLayer(this.images[i]);
+    }
+    this.images = [];
+  }
 
-    // // Seat Label
-    this.seatIconWidth = json.iconWidth;
-    this.seatIconHeight = json.iconHeight;
+  private updatemap() {
+    if (this.map == null) {
+      this.initMap();
+    }
+    this.resizeMap();
+  }
+
+  private initMap(): void {
+
+    this.caculatePercentSize();
+    
+    // SVG Asset Size
+    let svgWidth = this.modifyPixel(this.svgWidth);
+    let svgHeight = this.modifyPixel(this.svgHeight);
 
     var svgLocation = this.assetPath + json.svg;
 
@@ -193,7 +305,7 @@ export class MapComponent implements AfterViewInit {
     this.map = L.map('map', {
         crs: L.CRS.Simple,
         minZoom: -0.4,
-        maxZoom: 2,
+        maxZoom: 20,
         zoomSnap: 0.01,
         maxBounds: bounds,
         maxBoundsViscosity: 1.0,
@@ -201,8 +313,8 @@ export class MapComponent implements AfterViewInit {
     });
 
 
-    let imageOverlay = L.imageOverlay(svgLocation, bounds).addTo(this.map);
-    this.map.setView([svgHeight/2, svgWidth/2], -0.4);
+    this.overlayLayer = L.imageOverlay(svgLocation, bounds).addTo(this.map);
+    this.map.setView([svgHeight/2, svgWidth/2], this.initialZoomLevel);
 
     // changing zoom controls
     // https://stackoverflow.com/questions/33614912/how-to-locate-leaflet-zoom-control-in-a-desired-position
@@ -248,13 +360,17 @@ export class MapComponent implements AfterViewInit {
   }
 
   modifyXPositionForBounds(x) {
-      var offsetX = this.seatIconWidth / 2
-      return offsetX + x;
+      // var offsetX = this.seatIconWidth / 2
+      // return offsetX + x;
+
+      return x;
   }
 
   modifyYPositionForBounds(y) {
-      var offsetY = this.seatIconHeight / 2
-      return -1 * offsetY - y;
+      // var offsetY = this.seatIconHeight / 2
+      // return -1 * offsetY - y;
+
+      return -1 * y;
   }
 
   // Swap the x and y coordinates
@@ -264,20 +380,18 @@ export class MapComponent implements AfterViewInit {
   }
 
   addSeatAsImage(seat):void {
-    console.log("addSeatAsImage");
-
     var x = seat.x;
     var y = seat.y;
 
-    var modifiedX = this.modifyXPositionForBounds(x);
-    var modifiedY = this.modifyYPositionForBounds(y);
+    var modifiedX = this.modifyPixel(this.modifyXPositionForBounds(x));
+    var modifiedY = this.modifyPixel(this.modifyYPositionForBounds(y));
 
     var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
 
     var markerLatLong = L.latLng(newPosition);
 
-    var halfIconWidth = this.seatIconWidth * 0.5;
-    var halfIconHeight = this.seatIconHeight * 0.5;
+    var halfIconWidth = this.modifyPixel(this.seatIconRadius) * 0.5;
+    var halfIconHeight = this.modifyPixel(this.seatIconRadius) * 0.5;
 
     var bounds = [
       [markerLatLong.lat - halfIconWidth, markerLatLong.lng - halfIconHeight],
@@ -292,76 +406,7 @@ export class MapComponent implements AfterViewInit {
     var marker = L.marker(markerLatLong, {icon : icon, opacity: 0}).addTo(this.map);
     marker.bindTooltip(seat.code, {permanent: true, direction: "top"}).openTooltip();
   }
-
-  addSeat(seat):void {
-    console.log("addSeat");
-      var x = seat.x;
-      var y = seat.y;
-
-      var modifiedX = this.modifyXPositionForBounds(x);
-      var modifiedY = this.modifyYPositionForBounds(y);
-
-      var newPosition = this.modifyForGeoJSON(modifiedX, modifiedY);
-
-
-      var markerLatLong = L.latLng(newPosition);
-      
-      let reserved = this.reservedStatusFor(seat.seatCode);
-
-      let printedOutCorrect = false;
-      let reservations = this.reservationsFor(seat.seatCode);
-      if (this.isReservationUsers(reservations)) {
-        if (reservations.length > 0) {
-          let debug = this.reservationsInFilterForDebugFor(seat.seatCode);
-          if (debug == '') {
-            console.log(seat.seatCode + ' no overlapping reservations');
-          } else {
-            printedOutCorrect = true;
-            console.log(debug);
-          }
-        }
-      }
-      
-      var queries:string[] = this.popupQueries(seat);
-      var icon = this.iconFor(seat.seatCode, printedOutCorrect);
-      var marker = L.marker(markerLatLong, {icon: icon} ).addTo(this.map);
-      marker.bindPopup(this.popupFor(seat));
-      marker.on("popupopen", () => {
-        for (var i = 0; i < queries.length; i += 1) {
-          let query = queries[i];
-          // console.log(query);
-          // console.log(this.elementRef.nativeElement);
-          this.elementRef.nativeElement
-          .querySelector(query)
-          .addEventListener("click", e => {
-            if (reserved) {
-              // console.log(e);
-              this.remove(seat.seatCode, e);
-            } else {
-              // console.log(e);
-              this.reserve(seat.seatCode);
-            }
-          });
-        }
-      });
-
-      marker.on("click", () => {
-        this.selected(seat.seatCode);
-      });
-
-      marker.bindTooltip(seat.name, {permanent: true, direction: "top"}).openTooltip();
-      
-      // https://stackoverflow.com/questions/63740716/how-to-call-outer-class-function-from-inner-function-in-javascript
-      this.map.on('zoomend', () => {
-        marker.setIcon(this.iconFor(seat.seatCode, false));
-        this.updateTooltipFor(marker, printedOutCorrect);
-      });
-
-      marker.setIconAngle(seat.angle);
-
-      this.markers.push(marker);
-  }
-
+  
   selected(seatCode) {
     console.log("click " + seatCode);
   }
@@ -470,17 +515,17 @@ export class MapComponent implements AfterViewInit {
       percentageOfMap += 1;
     }
 
-    var newWidth = percentageOfMap * this.seatIconWidth;
+    var newWidth = percentageOfMap * this.seatIconRadius;
     var halfWidth = newWidth/ 2;
 
-    var newHeight = percentageOfMap * this.seatIconHeight;
+    var newHeight = percentageOfMap * this.seatIconRadius;
     var halfHeight = newHeight/ 2;
 
     // marker.getTooltip().offset = [newHeight * 10, newHeight * 20];
     marker.getTooltip().offset = L.point(0, newHeight);
     if (debug) {
-      console.log(newHeight);
-      console.log(marker.getTooltip().offset);
+      // console.log(newHeight);
+      // console.log(marker.getTooltip().offset);
     }
   }
 
@@ -492,7 +537,7 @@ export class MapComponent implements AfterViewInit {
   }
 
   iconFor(seatCode, debug):L.icon {
-    console.log("iconFor");
+    // console.log("iconFor");
     var currentZoom = this.map.getZoom();
     var percentageOfMap = currentZoom;
     
@@ -502,16 +547,10 @@ export class MapComponent implements AfterViewInit {
       percentageOfMap += 1;
     }
 
-    // var newWidth = percentageOfMap * this.seatIconWidth;
-    // var halfWidth = newWidth/ 2;
-
-    var newWidth = this.seatIconWidth;
+    var newWidth = this.modifyPixel(percentageOfMap * this.seatIconRadius);
     var halfWidth = newWidth/ 2;
 
-    // var newHeight = percentageOfMap * this.seatIconHeight;
-    // var halfHeight = newHeight/ 2;
-
-    var newHeight = this.seatIconHeight;
+    var newHeight = this.modifyPixel(percentageOfMap * this.seatIconRadius);
     var halfHeight = newHeight/ 2;
 
 
@@ -527,7 +566,7 @@ export class MapComponent implements AfterViewInit {
       iconUrl: iconURL,
       iconSize:     [newWidth, newHeight], // size of the icon
       iconAnchor:   [halfWidth, halfHeight], // point of the icon which will correspond to marker's location
-      popupAnchor:  [0, halfHeight], // point from which the popup should open relative to the iconAnchor
+      popupAnchor:  [0, 0], // point from which the popup should open relative to the iconAnchor
       tooltipAchor: [newWidth, newHeight]
     });
   }
